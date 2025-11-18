@@ -27,6 +27,8 @@ import triangle.syntacticAnalyzer.Parser;
 import triangle.syntacticAnalyzer.Scanner;
 import triangle.syntacticAnalyzer.SourceFile;
 import triangle.treeDrawer.Drawer;
+import org.apache.commons.cli.*;
+import triangle.visitor.StatisticsSummary;
 
 /**
  * The main driver class for the Triangle compiler.
@@ -38,6 +40,9 @@ public class Compiler {
 	
 	static boolean showTree = false;
 	static boolean folding = false;
+    static boolean showTreeAfter = false;
+    static boolean showStats = false;
+    static String sourceName;
 
 	private static Scanner scanner;
 	private static Parser parser;
@@ -51,19 +56,20 @@ public class Compiler {
 	private static Program theAST;
 
 	/**
-	 * Compile the source program to TAM machine code.
-	 *
-	 * @param sourceName   the name of the file containing the source program.
-	 * @param objectName   the name of the file containing the object program.
-	 * @param showingAST   true iff the AST is to be displayed after contextual
-	 *                     analysis
-	 * @param showingTable true iff the object description details are to be
-	 *                     displayed during code generation (not currently
-	 *                     implemented).
-	 * @return true iff the source program is free of compile-time errors, otherwise
-	 *         false.
-	 */
-	static boolean compileProgram(String sourceName, String objectName, boolean showingAST, boolean showingTable) {
+     * Compile the source program to TAM machine code.
+     *
+     * @param sourceName   the name of the file containing the source program.
+     * @param objectName   the name of the file containing the object program.
+     * @param showingAST   true iff the AST is to be displayed after contextual
+     *                     analysis
+     * @param showingTable true iff the object description details are to be
+     *                     displayed during code generation (not currently
+     *                     implemented).
+     * @param showStats
+     * @return true iff the source program is free of compile-time errors, otherwise
+     * false.
+     */
+	static boolean compileProgram(String sourceName, String objectName, boolean showingAST, boolean showingTable, boolean showStats) {
 
 		System.out.println("********** " + "Triangle Compiler (Java Version 2.1)" + " **********");
 
@@ -97,6 +103,18 @@ public class Compiler {
 			if (folding) {
 				theAST.visit(new ConstantFolder());
 			}
+
+            if(showTreeAfter) {
+                drawer.draw(theAST);
+            }
+
+            if (Compiler.showStats) {
+                System.out.println("Collecting program statistics ...");
+                StatisticsSummary stats = new StatisticsSummary();
+                theAST.visit(stats, null);
+                System.out.println("Integer expressions: " + stats.getIntegerCount());
+                System.out.println("Character expressions: " + stats.getCharacterCount());
+            }
 			
 			if (reporter.getNumErrors() == 0) {
 				System.out.println("Code Generation ...");
@@ -122,32 +140,49 @@ public class Compiler {
 	 */
 	public static void main(String[] args) {
 
-		if (args.length < 1) {
-			System.out.println("Usage: tc filename [-o=outputfilename] [tree] [folding]");
-			System.exit(1);
-		}
-		
-		parseArgs(args);
+        parseArgs(args);
 
-		String sourceName = args[0];
-		
-		var compiledOK = compileProgram(sourceName, objectName, showTree, false);
+        var compiledOK = compileProgram(sourceName, objectName, showTree, false, showStats);
 
-		if (!showTree) {
-			System.exit(compiledOK ? 0 : 1);
-		}
-	}
-	
-	private static void parseArgs(String[] args) {
-		for (String s : args) {
-			var sl = s.toLowerCase();
-			if (sl.equals("tree")) {
-				showTree = true;
-			} else if (sl.startsWith("-o=")) {
-				objectName = s.substring(3);
-			} else if (sl.equals("folding")) {
-				folding = true;
-			}
-		}
-	}
+        if (!showTree) {
+            System.exit(compiledOK ? 0 : 1);
+        }
+
+    }
+
+    private static void parseArgs(String[] args) {
+        Options options = new Options();
+
+        // Define options: short name, long name, hasArg, description
+        options.addOption("o", "output", true, "output object file name");
+        options.addOption("t", "tree", false, "show abstract syntax tree");
+        options.addOption("f", "folding", false, "perform constant folding");
+        options.addOption("a", "treeAfter", false, "show abstract tree after folding");
+        options.addOption("s","showStats", false, "show stats");
+
+        CommandLineParser parser = new DefaultParser();
+        try {
+            CommandLine cmd = parser.parse(options, args);
+
+            if (cmd.getArgList().isEmpty()) {
+                System.out.println("Usage: tc filename [-o outputfile] [-t|--tree] [-f|--folding] [-a|--treeAfter]");
+                System.exit(1);
+            }
+
+            sourceName = cmd.getArgList().get(0);
+
+            if (cmd.hasOption("o")) {
+                objectName = cmd.getOptionValue("o");
+            }
+            showTree = cmd.hasOption("t");
+            folding = cmd.hasOption("f");
+            showTreeAfter = cmd.hasOption("a");
+            showStats = cmd.hasOption("s");
+
+        } catch (ParseException e) {
+            System.out.println("Error parsing command-line arguments: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+
 }

@@ -35,14 +35,7 @@ import triangle.abstractSyntaxTrees.aggregates.MultipleRecordAggregate;
 import triangle.abstractSyntaxTrees.aggregates.RecordAggregate;
 import triangle.abstractSyntaxTrees.aggregates.SingleArrayAggregate;
 import triangle.abstractSyntaxTrees.aggregates.SingleRecordAggregate;
-import triangle.abstractSyntaxTrees.commands.AssignCommand;
-import triangle.abstractSyntaxTrees.commands.CallCommand;
-import triangle.abstractSyntaxTrees.commands.Command;
-import triangle.abstractSyntaxTrees.commands.EmptyCommand;
-import triangle.abstractSyntaxTrees.commands.IfCommand;
-import triangle.abstractSyntaxTrees.commands.LetCommand;
-import triangle.abstractSyntaxTrees.commands.SequentialCommand;
-import triangle.abstractSyntaxTrees.commands.WhileCommand;
+import triangle.abstractSyntaxTrees.commands.*;
 import triangle.abstractSyntaxTrees.declarations.ConstDeclaration;
 import triangle.abstractSyntaxTrees.declarations.Declaration;
 import triangle.abstractSyntaxTrees.declarations.FuncDeclaration;
@@ -290,14 +283,31 @@ public class Parser {
 
 			} else {
 
-				Vname vAST = parseRestOfVname(iAST);
-				accept(Token.Kind.BECOMES);
-				Expression eAST = parseExpression();
-				finish(commandPos);
-				commandAST = new AssignCommand(vAST, eAST, commandPos);
-			}
-		}
-			break;
+                Vname vAST = parseRestOfVname(iAST);
+
+                if (currentToken.kind == Token.Kind.OPERATOR && currentToken.spelling.equals("**")) {
+                    acceptIt();
+
+                    IntegerLiteral two = new IntegerLiteral("2", commandPos);
+                    IntegerExpression twoExpr = new IntegerExpression(two, commandPos);
+                    VnameExpression varExpr = new VnameExpression(vAST, commandPos);
+                    Operator multiply = new Operator("*", commandPos);
+                    Expression doubleExpr = new BinaryExpression(varExpr, multiply, twoExpr, commandPos);
+
+                    finish(commandPos);
+                    commandAST = new AssignCommand(vAST, doubleExpr, commandPos);
+
+                } else {
+                    accept(Token.Kind.BECOMES);
+                    Expression eAST = parseExpression();
+                    finish(commandPos);
+                    commandAST = new AssignCommand(vAST, eAST, commandPos);
+                }
+
+            }
+        }
+
+        break;
 
 		case BEGIN:
 			acceptIt();
@@ -337,12 +347,32 @@ public class Parser {
 		}
 			break;
 
-		case SEMICOLON:
+        case LOOP: {
+            acceptIt();
+            Command c1AST = parseSingleCommand();
+            accept(Token.Kind.WHILE);
+            Expression eAST = parseExpression();
+            accept(Token.Kind.DO);
+            Command c2AST = parseSingleCommand();
+            finish(commandPos);
+            commandAST = new LoopWhileCommand(c1AST, eAST, c2AST, commandPos);
+        }
+            break;
+
+        case LCURLY:
+             acceptIt();
+             commandAST = parseCommand();
+             accept(Token.Kind.RCURLY);
+             break;
+
+
+
+            case SEMICOLON:
 		case END:
 		case ELSE:
 		case IN:
 		case EOT:
-
+        case RCURLY:
 			finish(commandPos);
 			commandAST = new EmptyCommand(commandPos);
 			break;
